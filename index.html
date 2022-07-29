@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .dropdown-toggle::after {
+            display: none;
+        }
+
+        .task {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .task label.checked {
+            text-decoration: line-through;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .filters span.active {
+            color: #3C87FF;
+        }
+
+        .filters span {
+            margin-right: 5px;
+            font-size: 15px;
+            column-rule-color: #444444;
+            cursor: pointer;
+        }
+    </style>
+    <title>Document</title>
+</head>
+<body>
+    <!-- Bu kısımda uygulamayı tarayıcıda kaydetmeyi görelim -->
+    <!-- Yani bi kere todo list oluşturulduktan sonra, kullanıcı tarayıcısında onu tekrar açtığında aynı todo'lar gözüksün, silinmiş olmasın -->
+    <!-- Local-storage tarayıcının öğeyi denetle kısmının Application sekmesi altından ulaşıalabiliyor -->
+    <!-- Burada yapmamız gereken, gorevListesi'ni tarayıcı belleğinde saklamak olacak -->
+    <!-- Bu sayede gorevListesi, dokuman içindeki koddan değil, tarayıcı belleğinden çekilecek -->
+
+
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        Todo App 
+                    </div>
+                    <div class="card-body">
+                        <form>
+                            <div class="input-group">
+                                <input type="text" id="txtTaskName" class="form-control">
+                                <button type="submit" class="btn btn-primary" id="btnAddNewTask">
+                                    Ekle
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header controls">
+                        <div class="filters">
+                            <span class="active" id="all">Hepsi</span>
+                            <span id="pending">Yapılacaklar</span>
+                            <span id="completed">Tamamlananlar</span>
+                        </div>
+                        <button id="btnClear" class="btn btn-danger btn-sm float-end">Temizle</button>
+                    </div>
+                    <ul id="task-list" class="list-group list-group-flush">
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+   
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+
+        "use strict";
+        // Todo applikasyonumuz bir liste şeklinde uygulansın ve dinamik olarak bu listenin içini dolduralım
+        let gorevListesi = [
+            
+        ];
+
+        // Local storage içerisindeki bilgileri sorgulayalım ve local-storage'da hali hazırda bir gorevListesi var ise, uygulama çalıştığında bunu gorevListesi'ne aktaralım
+        if(localStorage.getItem("gorevListesi") !== null) { // Local storage'da hali hazırda bir gorevListesi var ise
+            gorevListesi = JSON.parse(localStorage.getItem("gorevListesi")); // O listeyi al ve içeriklerini yeni çalışan gorevListesi içerisinde sakla
+            // Ancak biz local storage üzerinde sakladığımız bilgiyi, proje içerisinde açmış olduğumuz dizi içerisine direkt aktaramıyoruz
+            // Burada ypamamız gereken, tarayıcı içerisinde veriler JSON yapısıda string olarak saklandığından dolayı, biz bu bilgileri ilgili JSON dosyasını parselleyerek çekmeliyiz
+            // Bu JSON datalar, ilerleyen aşamalarda servislerle çalışırken incelenecektir.
+            // Şuan getItem ile (eğer varsa) JSON dosyasındaki ilgili gorevListesi elemanlarını çekmiş bulunmaktayız
+            // Şimdi ise bu değerleri setItem ile kendi javascript kodumuzun içindeki gorevListesi dizimize(local-storage'ımıza) ekleyelim. (SATIR 226'YA BAK)
+        }
+
+        // Silme değil de, düzenleme yapacağımız GÖREV'in id'sini burada tutacağız
+        let editId;
+
+        // Düzenleme işlem sürecinde olup olmadığımızı bilgisayarın anlaması için bir boolean oluşturalım
+        let isEditTask = false;
+        
+        // GÖREVleri gireceğimiz input bölümüne erişelim
+        const taskInput = document.querySelector("#txtTaskName");
+
+        // GÖREVlerin tümünü tek seferde temizlememizi sağlayacak butona erişelim
+        const btnClear = document.querySelector("#btnClear");
+
+        // Filtrelerimize erişelim
+        const filters = document.querySelectorAll(".filters span")
+        
+        // Sayfa ilk açıldığında ilk iş aşağıdaki fonksiyon çağrılsın ve hali-hazırda var olan GÖREVleri göstersin
+        displayTasks("all");
+
+        // Bu fonksiyo GÖREV listelerini ve checkboxları oluşturup ekranda gösterecek
+        function displayTasks(filter) {
+            // Listeleri oluşturacağımız <ul> alanına ulaşalım
+            let ul = document.getElementById("task-list");
+            // İlk etapta listemiz boş olsun
+            ul.innerHTML = "";
+
+            // Eğer liste boş ise bir uyarı mesajı gösterelim
+            if (gorevListesi.length == 0) {
+                ul.innerHTML = "<p class='p-3 m-0'>Görev listeniz boş.</p>"
+            }
+            // Listeye öğeler eklendikçe aşağıdaki işlemler uygulansın
+            else{
+
+                // Eklenen her öğe taransın ve sırasıyla "gorev" adı verilen bir değişken içinde saklansın
+                for(let gorev of gorevListesi) {
+                    
+                    // Tarama işlemi esnasında GÖREVlerden checkbox'ı işaretlenmiş olan objelerin "durum" özellikleri güncellensin
+                  let completed = gorev.durum == "completed" ? "checked" : "";
+                  
+                  // filtreleme işlemlerimiz, completed, pending veya all durumuna göre yapılsın ve gösterilsin
+                  if (filter == gorev.durum || filter == "all") {
+                    
+                        // Tara işlemi esnasında GÖREV listesi oluşturulsun
+                        // Bu işlem esnasında gorev değişkeni içine id ve gorevAdi diye özellikler açılacak
+                        // Bu özellikler her liste elemanının id ve value(text) bilgisini tutacak
+                        // input içindeki onclick özelliğinde çağrılan fonksiyonun (this) parametresi direkt olarak ilgili input'a başka koddan erişim sağlanmasına yarar
+                        let li = `
+                        <li class="task list-group-item">
+                            <div class="form-check">
+                                <input type="checkbox" onclick="updateStatus(this)" id="${gorev.id}" class="form-check-input" ${completed}>
+                                <label for="${gorev.id}" class="form-check-label ${completed}">${gorev.gorevAdi}</label>
+                            </div> 
+
+                            <div class="dropdown">
+                                <button class="btn btn-link dropdown-toggle" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fa-solid fa-ellipsis"></i>
+                                </button>
+                                <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                                    <li><a onclick="deleteTask(${gorev.id})" class="dropdown-item" href="#"><i class="fa-solid fa-trash-can"></i> Sil</a></li>
+                                    <li><a onclick='editTask(${gorev.id}, "${gorev.gorevAdi}")' class="dropdown-item" href="#"><i class="fa-solid fa-pen"></i> Düzenle</a></li>
+                                </ul>
+                            </div>
+                        </li>
+                    `;
+                        // Bu kod bloğu ilgili elemanların <ul> içinde nasıl konumlanacağını belirler
+                        ul.insertAdjacentHTML("beforeend", li);   
+                     }
+                }
+            }
+        }
+
+        // Burada yeni GÖREV eklenecekken bunu Enter tuşu ve Ekle butonuyla gerçekleştirmeyi sağlıyor
+        document.querySelector("#btnAddNewTask").addEventListener("click", newTask);
+        document.querySelector("#btnAddNewTask").addEventListener("keypress", function(){
+            if (event.key == "Enter") {
+                document.getElementById("btnAddNewTask").click();
+            }
+        });
+
+        for(let span of filters) {
+            span.addEventListener("click", function() {
+                // ilk olarak tıklanan spana aktif klassını verme işini halledelim
+                document.querySelector("span.active").classList.remove("active");
+                span.classList.add("active");
+                //spanlara erişmişken id'lerini filtreleme için displayTask'a gönderelim
+                displayTasks(span.id);
+            })
+        }
+
+
+        // Bu fonksiyon  yeni bir GÖREV oluşturmayı sağlayacak
+        // İçerideki event parametresi sayesinde  event.preventDefault(); yapıp ilgili butona tıklandığında sayfanın yenilenmesini engelleyeceğiz
+        function newTask(event) {
+            
+            // Girilen input boş ise uyarı verilsin
+            if(taskInput.value == "") {
+                alert("görev girmelisiniz");
+
+                // input boş değilse tam olarak ne yaptığımız anlaşılsın (görev mi ekliyoruz? var olan görevi mi güncelliyoruz?)
+            } else {
+                if(!isEditTask) {
+                    // eklemek
+                    // push fonksiyonu aracılığı ile görev listesinde yeni bir görev oluşturulsun. ID ve gorevAdi değerleri belirlensin
+                    gorevListesi.push({"id": gorevListesi.length + 1, "gorevAdi": taskInput.value, "durum": "pending"});
+                }
+                else {
+                    // güncellemek
+                    // Düzenle tuşuna basıldığında listedeki elemanlar taransın, ve düzenlenmek istenen elemanın id'si gerçekten liste içinde hala mevcut mu kontrol edilsin
+                    // Bu yapılmazsa misal olarak biz {1-2-3-4-5}  3. id'li elemanı önceden silmiş olduğumuzda
+                    // For döngüsü 4 defa döneceği fakat son elemanın id'si 5 olacağı için, index adeti ile son elemanın id büyüklüğü tutarsızlığı olur
+                    for(let gorev of gorevListesi) {
+                        if(gorev.id == editId) {
+                            gorev.gorevAdi = taskInput.value;
+                        }
+                    }
+                    // Düzenleme işlemi bitince bu değişkenimizi false yapıp bilgisayara düzenleme modundan çıktığımızı belirtelim
+                    isEditTask = false;
+                }
+                // input kısmımızda yazılmış olan şeyleri silelim
+                taskInput.value = "";
+                // listenin son halini kullanıcıya gösterelim
+                displayTasks(document.querySelector("span.active").id);
+                // 96. satırda tarayıcıdaki JSON dosyasından ilgili gorevListesi elemanlarını çekip bir objeye çevirmiştik(getItem)
+                // Şimdi ise o çektiğimiz elemanlarla yapıcağımız işlemler bittikten sonra, onları tekrar JSON formatına çevirip local storage'ımıza geri gönderelim.
+                localStorage.setItem("gorevListesi", JSON.stringify(gorevListesi));
+            }
+
+            event.preventDefault();
+        }       
+
+        // Bu fonksiyon sayesinde istemediğimiz görevleri silicez
+        function deleteTask(id) {
+            // Silmek istediğimiz görevleri içinde tutacak bir değişken
+            let deletedId;
+            
+            // üstteki fonksiyondaki else durumu içindeki for döngüsünde yaptığımız kontrolün aynısını bunun için de yapalım
+            // ki silinecek öğenin gerçekten liste içinde var olup olmadığına emin olalım
+            for(let index in gorevListesi) {
+                if(gorevListesi[index].id == id) {
+                    deletedId = index;
+                }
+            }
+
+            // deletedId = gorevListesi.findIndex(function(gorev) {
+            //     return gorev.id == id;
+            // })
+
+            // deletedId = gorevListesi.findIndex(gorev => gorev.id == id)
+
+            // splice sayesinde bir List'ten silme işlemi gerçekleşir, parametre olarak silinecek değeri, ve o değerden itibaren
+            // kaç tane öğenin silineceği girilir
+            gorevListesi.splice(deletedId, 1);
+            displayTasks(document.querySelector("span.active").id);
+            // 96. satırda tarayıcıdaki JSON dosyasından ilgili gorevListesi elemanlarını çekip bir objeye çevirmiştik(getItem)
+            // Şimdi ise o çektiğimiz elemanlarla yapıcağımız işlemler bittikten sonra, onları tekrar JSON formatına çevirip local storage'ımıza geri gönderelim.
+            localStorage.setItem("gorevListesi", JSON.stringify(gorevListesi));
+        }
+
+        // GOREV'in id'sini ve gorevAdi'ni alalım
+        function editTask(taskId, taskName) {
+            editId = taskId;
+            isEditTask = true;
+            taskInput.value = taskName;
+            taskInput.focus();
+            taskInput.classList.add("active");
+        }
+
+        // Temizle butonumuz tüm GÖREVleri silsin
+        btnClear.addEventListener("click", function() {
+            gorevListesi.splice(0, gorevListesi.length);
+            // 96. satırda tarayıcıdaki JSON dosyasından ilgili gorevListesi elemanlarını çekip bir objeye çevirmiştik(getItem)
+            // Şimdi ise o çektiğimiz elemanlarla yapıcağımız işlemler bittikten sonra, onları tekrar JSON formatına çevirip local storage'ımıza geri gönderelim.
+            localStorage.setItem("gorevListesi", JSON.stringify(gorevListesi));
+            displayTasks();
+        })
+
+        // Tamamlanan görevlerin üstü çizilsin (CSS kodlarına da bak)
+        function updateStatus(selectedTask) {
+            // (this) ile task alanına direkt erişiyoruz, biz bunun bir ilerisine gitmeliyiz yani label'a
+            // bunun için nextElementSibling'i kullanıyoruz
+            let label = selectedTask.nextElementSibling;
+            let durum;
+
+            // Line 100, 118 ve 119 incele
+            if(selectedTask.checked) {
+                label.classList.add("checked");
+                durum = "completed";
+            }
+            else {
+                label.classList.remove("checked");
+                durum = "pending";
+            }
+
+            for(let gorev of gorevListesi)
+            {
+                if(gorev.id == selectedTask.id) {
+                    gorev.durum = durum;
+                }
+            }
+
+            // Burada, her check işlemi sonucunda, ilgili spanların ilgili başlıklara (Hepsi, Yapılacak, Tamamlanan) aktarımını sağlıyoruz
+            displayTasks(document.querySelector("span.active").id);
+
+            // 96. satırda tarayıcıdaki JSON dosyasından ilgili gorevListesi elemanlarını çekip bir objeye çevirmiştik(getItem)
+            // Şimdi ise o çektiğimiz elemanlarla yapıcağımız işlemler bittikten sonra, onları tekrar JSON formatına çevirip local storage'ımıza geri gönderelim.
+            localStorage.setItem("gorevListesi", JSON.stringify(gorevListesi));
+        }
+      
+    </script>
+
+</body>
+</html>
